@@ -28,7 +28,7 @@ const Sidebar = () => {
   };
 
   return (
-    <nav className="hidden lg:flex flex-col fixed left-0 top-0 h-full py-6 w-64 border-r border-slate-200 bg-slate-50 z-40">
+    <nav className="flex flex-col h-screen py-6 w-64 border-r border-slate-200 bg-slate-50 overflow-x-hidden">
       <div className="px-6 mb-6 flex flex-col gap-2">
         <span className="text-lg font-black text-blue-900 uppercase tracking-wider" style={{ fontFamily: "'Public Sans', sans-serif" }}>
           Academic Portal

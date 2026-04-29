@@ -10,10 +10,10 @@ export const router = createBrowserRouter([
     {
         path: '/', Component: TaskMain,
         children: [
-            {index: true, Component: Dashboard},
-            {path:'/student', Component: StudentView},
-            {path:'/teacher', Component: TeacherView },
-            {path:'/my-slots', Component: MySlots}
+            {index: true, Component: TeacherView},
+            {path:'student', Component: StudentView},
+            {path:'teacher', Component: TeacherView },
+            {path:'my-slots', Component: MySlots}
         ]
     }
 ])

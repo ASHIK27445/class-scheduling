@@ -15,7 +15,7 @@ const StudentView = () => {
   const [studentName, setStudentName] = useState("");
   const [bookingError, setBookingError] = useState("");
 
-  const API_BASE = "http://localhost:5000/api";
+  const API_BASE = import.meta.env.VITE_API_BASE_LINK
 
   const availableSlots = slots.filter(s => s.status === "available" && !isPastSlot(s.date, s.startTime));
   const dates = [...new Set(availableSlots.map(s => s.date))].sort();
@@ -45,7 +45,8 @@ const StudentView = () => {
       setStudentName("");
       refreshSlots();
     } catch (err) {
-      toast.error(err.message, "error");
+      toast.error(err.message, "hoisere, error");
+      console.log(err)
     }
   }
 

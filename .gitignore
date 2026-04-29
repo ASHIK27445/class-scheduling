@@ -5,13 +5,20 @@ client/src/authentication
 client/src/firebase
 client/.gitignore
 client/README.md
+client/.firebase
+client/.vite
+client/dist
+client/.firebaserc
+client/firbase.json
+client/.env
 
 server/.gitignore
 server/.env
+server/.vercel
+server/vercel.json
 
 client/src/components/task/Dashboard.jsx
 client/src/components/task/SlotCard.jsx
 client/src/components/task/SlotContext.jsx
 client/src/components/task/StatCard.jsx
-client/src/components/task/TaskMain.jsx
 client/src/components/task/TaskJob.jsx

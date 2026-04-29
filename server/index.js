@@ -3,9 +3,9 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const port = process.env.PORT;
+const port = process.env.PORT || 5000;
 
-// ─── MongoDB Connection ──────────────────────────────────────────────────────
+// ─── MongoDB Connection 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_SEC}@cluster0.md2layq.mongodb.net/?appName=Cluster0`;
 const client = new MongoClient(uri, {
   serverApi: {
@@ -15,16 +15,16 @@ const client = new MongoClient(uri, {
   }
 });
 
-// ─── Express setup ───────────────────────────────────────────────────────────
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ─── Database references ─────────────────────────────────────────────────────
-const dbName = 'eduschedule';     // main database
-let slotsCollection;              // will hold the 'slots' collection
 
-// ─── Helper functions for slot logic ─────────────────────────────────────────
+const dbName = 'eduschedule';     
+let slotsCollection;             
+
+
 function parseDateTime(dateStr, timeStr) {
   const [year, month, day] = dateStr.split('-').map(Number);
   const [hour, minute] = timeStr.split(':').map(Number);
@@ -40,20 +40,17 @@ function slotsOverlap(slot1, slot2) {
   return start1 < end2 && start2 < end1;
 }
 
-// ─── Connect to MongoDB and start server ─────────────────────────────────────
+// ─── Connect to MongoDB and start server 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const db = client.db(dbName);
-    slotsCollection = db.collection('slots');   // <-- new collection
+    slotsCollection = db.collection('slots'); 
 
     console.log('Connected to MongoDB – using database:', dbName);
 
-    // ══════════════════════════════════════════════════════
-    //  SLOT ROUTES
-    // ══════════════════════════════════════════════════════
 
-    // GET all slots (sorted)
+    // GET all slots
     app.get('/api/slots', async (req, res) => {
       try {
         const slots = await slotsCollection.find().sort({ date: 1, startTime: 1 }).toArray();
@@ -80,11 +77,10 @@ async function run() {
           return res.status(400).json({ message: 'Cannot add slots entirely in the past.' });
         }
 
-        // Round start down to nearest 15 min
         let cursor = new Date(startDate);
         cursor.setMinutes(Math.floor(cursor.getMinutes() / 15) * 15, 0, 0);
 
-        // Fetch existing slots for the same date (to check overlaps)
+
         const existingOnDate = await slotsCollection.find({ date }).toArray();
 
         const newSlots = [];
@@ -108,14 +104,12 @@ async function run() {
             location: location || 'Room 402',
           };
 
-          // Skip past slots
           if (parseDateTime(date, sTime) < new Date()) {
             skippedPast++;
             cursor = slotEnd;
             continue;
           }
 
-          // Check overlap with existing DB slots AND any we’ve already generated
           const allSlots = [...existingOnDate, ...newSlots];
           const overlaps = allSlots.some(s => slotsOverlap(candidate, s));
           if (overlaps) {
@@ -198,7 +192,7 @@ async function run() {
       }
     });
 
-    // DELETE – single slot (only available ones)
+    // DELETE – single slot
     app.delete('/api/slots/:id', async (req, res) => {
       try {
         const slot = await slotsCollection.findOne({ _id: new ObjectId(req.params.id) });
@@ -213,7 +207,7 @@ async function run() {
       }
     });
 
-    // DELETE – clear all slots (with force query param)
+    // DELETE – clear all slots
     app.delete('/api/slots/clear/all', async (req, res) => {
       try {
         const { force } = req.query;
@@ -232,11 +226,8 @@ async function run() {
       }
     });
 
-    // ─── Keep your existing product routes if needed ────────────────────────
-    // ... (your product routes remain here; they are independent)
-
     // Ping to confirm connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("✅ Successfully connected to MongoDB Atlas!");
 
   } catch (err) {
@@ -247,7 +238,6 @@ async function run() {
 
 run().catch(console.dir);
 
-// ─── Basic endpoint ──────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.send('EduSchedule API is running...');
 });
