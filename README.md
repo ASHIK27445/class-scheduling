@@ -159,10 +159,17 @@ Open `http://localhost:5173` in your browser.
 The app uses `react-router`. Ensure your router is set up with at least these routes:
 
 ```jsx
-<Route path="/" element={<TaskMain />}>
-  <Route path="teacher" element={<TeacherView />} />
-  <Route path="student" element={<StudentBookingView />} />
-</Route>
+export const router = createBrowserRouter([
+    {
+        path: '/', Component: TaskMain,
+        children: [
+            {index: true, Component: TeacherView},
+            {path:'student', Component: StudentView},
+            {path:'teacher', Component: TeacherView },
+            {path:'my-slots', Component: MySlots}
+        ]
+    }
+])
 ```
 
 ---
