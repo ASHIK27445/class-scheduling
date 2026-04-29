@@ -1,23 +1,72 @@
-# EduSchedule — Academic Slot Booking System
+# EduSchedule — Teacher–Student Slot Booking System
 
-A full-stack web application where a **teacher** can create and manage 15-minute time slots, and **students** can view and book those slots in real time.
+A full-stack scheduling application where a teacher can create and manage 15-minute consultation slots, and students can view and book those slots in real time.
 
 ---
 
 ## What I Implemented
 
-| Feature | Status |
+### Teacher Dashboard (`TeacherView.jsx`)
+- Displays teacher name (Prof. Smith) and three live summary cards: **Total Slots**, **Available**, and **Booked**
+- A form to generate 15-minute slot blocks by specifying a date, start time, end time, and location
+- An **hour-grouped visual grid** showing all slots for each date, colour-coded by status (available = blue dashed, booked = strikethrough hatched)
+- A **list table** below the grid with date, time, location, student name, status badge, and per-slot actions (Delete or Cancel booking)
+- A **Clear All** button (with confirmation) that uses `?force=true` to bypass the booked-slot guard on the backend
+
+### Student Booking View (`StudentBookingView.jsx`)
+- Shows only future available slots, grouped by date
+- Clicking a time chip selects it (highlighted in primary blue)
+- Student enters their name and clicks **Book Now**, which sends a `PATCH /api/slots/:id/book` request
+- On success, the slot disappears from the list immediately via a context refresh
+
+### Shared Infrastructure
+| File | Purpose |
 |---|---|
-| Teacher dashboard — create slots by date/time range | ✅ |
-| Auto-generate 15-minute blocks from a range | ✅ |
-| Slot conflict / overlap detection (server + client) | ✅ |
-| Past slot prevention (add & book) | ✅ |
-| Student booking view with slot grid | ✅ |
-| Cancel a booking (teacher) | ✅ |
-| Delete an available slot (teacher) | ✅ |
-| Clear all slots | ✅ |
-| Persistent storage via MongoDB Atlas | ✅ (Bonus) |
-| Shared React context for real-time UI sync | ✅ |
+| `SlotContext.jsx` | Creates the React context object |
+| `SlotProvider.jsx` | Fetches all slots on mount, provides `slots`, `loading`, `refreshSlots` to the tree |
+| `slotHelpers.js` | Pure utility functions (`parseDateTime`, `formatTimeOnly`, `formatDate`, `isPastSlot`, `getTomorrow`) and the design-token colour map `C` |
+| `Sidebar.jsx` | Navigation with `react-router` `NavLink` (active-state border highlight) |
+| `TaskMain.jsx` | Root layout — sidebar + `<Outlet />` + `<Toaster />` for toast notifications |
+
+---
+
+## How Slot Conflicts Are Handled
+
+Conflict detection happens **on the server** inside the `/api/slots/generate` endpoint (`index.js`).
+
+### Algorithm
+
+```
+parseDateTime(dateStr, timeStr) → JS Date
+slotsOverlap(slot1, slot2)      → boolean
+```
+
+`slotsOverlap` checks whether two slots share the same date **and** their time intervals intersect using the standard half-open interval test:
+
+```
+start1 < end2  &&  start2 < end1
+```
+
+When generating blocks, the backend:
+1. Fetches all **existing** slots on the requested date from MongoDB
+2. Iterates through 15-minute windows between `start` and `end`
+3. For every candidate window, checks it against existing slots **plus any already-queued new slots in the same batch** (the `[...existingOnDate, ...newSlots]` merge)
+4. Skips overlapping windows (`skippedOverlap++`) and past windows (`skippedPast++`)
+5. Returns counts of added vs. skipped so the UI can display a meaningful message
+
+This means:
+- Re-generating the same range is safe — duplicates are silently skipped
+- Partial overlaps (e.g. a 30-min block overlapping a 15-min block) are caught correctly
+- The check is atomic within the request (no race window between fetch and insert for the same request)
+
+### Past-slot guard (double-checked)
+- **Frontend**: `isPastSlot(date, startTime)` filters the slot list before rendering and shows a form error before even sending the request
+- **Backend**: each candidate window is compared against `new Date()` server-side, so a clock-skewed client cannot insert past slots
+
+### Booking guard
+The `PATCH /api/slots/:id/book` endpoint re-reads the slot from MongoDB before writing and rejects if:
+- `status === 'booked'` (already taken)
+- slot start time is in the past
 
 ---
 
@@ -25,51 +74,50 @@ A full-stack web application where a **teacher** can create and manage 15-minute
 
 ```
 project-root/
-├── server/
-│   └── eduServer.js          # Express + MongoDB REST API
+├── backend/
+│   └── index.js               # Express server, MongoDB routes
 │
-└── client/src/
-    ├── context/
-    │   ├── SlotContext.jsx    # React context definition
-    │   └── SlotProvider.jsx   # Fetches slots, provides state globally
-    │
-    ├── helpers/
-    │   └── slotHelpers.js     # Shared pure utility functions + color tokens
-    │
-    ├── pages/
-    │   ├── Dashboard.jsx      # Layout shell (renders Sidebar)
-    │   ├── TeacherView.jsx    # Teacher dashboard — slot creation & management
-    │   ├── StudentBookingView.jsx  # Student view — browse & book slots
-    │   └── MySlots.jsx        # Student's personal booked slots
-    │
-    └── components/
-        └── Sidebar.jsx        # Navigation sidebar with NavLink highlighting
+└── frontend/
+    └── src/
+        └── components/
+            └── task/
+                ├── TaskMain.jsx           # Root layout (sidebar + outlet)
+                ├── Sidebar.jsx            # Navigation
+                ├── SlotContext.jsx        # React context definition
+                ├── SlotProvider.jsx       # Data fetching + context provider
+                ├── slotHelpers.js         # Utility functions + colour tokens
+                ├── TeacherView.jsx        # Teacher dashboard page
+                └── StudentBookingView.jsx # Student booking page
 ```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Tailwind CSS, react-router, react-hot-toast |
+| Backend | Node.js, Express |
+| Database | MongoDB Atlas (via official Node.js driver) |
+| Fonts / Icons | Google Fonts (Public Sans, Lexend), Material Symbols Outlined |
 
 ---
 
 ## How to Run the Project
 
 ### Prerequisites
-
-- Node.js v18+
+- Node.js 18+
 - A MongoDB Atlas cluster (or local MongoDB)
+- A `.env` file in the backend directory
 
-### 1. Clone and install
+### 1 — Backend
 
 ```bash
-# Install server dependencies
-cd server
-npm install
-
-# Install client dependencies
-cd ../client
+cd backend
 npm install
 ```
 
-### 2. Configure environment variables
-
-Create a `.env` file inside the `server/` folder:
+Create a `.env` file:
 
 ```env
 PORT=5000
@@ -77,127 +125,93 @@ DB_USER=your_mongo_username
 DB_SEC=your_mongo_password
 ```
 
-### 3. Start the server
+Start the server:
 
 ```bash
-cd server
-node eduServer.js
+node index.js
 ```
 
 The API will be available at `http://localhost:5000`.
 
-### 4. Start the client
+### 2 — Frontend
 
 ```bash
-cd client
+cd frontend
+npm install
+```
+
+Create a `.env` file:
+
+```env
+VITE_API_BASE_LINK=http://localhost:5000/api
+```
+
+Start the dev server:
+
+```bash
 npm run dev
 ```
 
 Open `http://localhost:5173` in your browser.
 
+### 3 — Routing
+
+The app uses `react-router`. Ensure your router is set up with at least these routes:
+
+```jsx
+<Route path="/" element={<TaskMain />}>
+  <Route path="teacher" element={<TeacherView />} />
+  <Route path="student" element={<StudentBookingView />} />
+</Route>
+```
+
 ---
 
-## API Endpoints
+## API Reference
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/slots` | Fetch all slots (sorted by date & time) |
-| `POST` | `/api/slots/generate` | Generate 15-min blocks for a date/time range |
-| `PATCH` | `/api/slots/:id/book` | Book a slot with a student name |
-| `PATCH` | `/api/slots/:id/cancel` | Cancel a booking → set back to available |
+| `GET` | `/api/slots` | Fetch all slots (sorted by date, time) |
+| `POST` | `/api/slots/generate` | Generate 15-min blocks for a date range |
+| `PATCH` | `/api/slots/:id/book` | Book a slot (requires `{ studentName }`) |
+| `PATCH` | `/api/slots/:id/cancel` | Cancel a booking |
 | `DELETE` | `/api/slots/:id` | Delete a single available slot |
-| `DELETE` | `/api/slots/clear/all` | Delete all slots (use `?force=true` to include booked) |
+| `DELETE` | `/api/slots/clear/all?force=true` | Delete all slots |
 
----
+### `POST /api/slots/generate` body
 
-## How I Handled Slot Conflicts
-
-Conflict detection runs at **two layers**:
-
-### Server-side (authoritative)
-
-In `eduServer.js`, the `slotsOverlap()` function compares two slots:
-
-```js
-function slotsOverlap(slot1, slot2) {
-  if (slot1.date !== slot2.date) return false;
-  const start1 = parseDateTime(slot1.date, slot1.startTime);
-  const end1   = parseDateTime(slot1.date, slot1.endTime);
-  const start2 = parseDateTime(slot2.date, slot2.startTime);
-  const end2   = parseDateTime(slot2.date, slot2.endTime);
-  return start1 < end2 && start2 < end1;  // standard interval overlap test
+```json
+{
+  "date": "2025-06-10",
+  "start": "09:00",
+  "end": "11:00",
+  "location": "Room 402"
 }
 ```
 
-When generating slots, each candidate block is checked against:
-1. **Existing slots in MongoDB** for the same date
-2. **Slots already generated in this batch** (prevents intra-batch overlaps)
+Response includes `{ message, skippedOverlap, skippedPast, slots[] }`.
 
-Slots that overlap are skipped and reported back (`skippedOverlap` count) rather than rejected with an error.
+---
 
-### Client-side (UX guard)
+## Slot Data Model (MongoDB)
 
-`isPastSlot()` in `slotHelpers.js` hides past slots immediately in the UI so students never see or click them — even if the server hasn't cleaned them yet:
-
-```js
-export function isPastSlot(dateStr, timeStr) {
-  return parseDateTime(dateStr, timeStr) < new Date();
+```json
+{
+  "_id": "ObjectId",
+  "date": "2025-06-10",
+  "startTime": "09:00",
+  "endTime": "09:15",
+  "status": "available | booked",
+  "studentName": null,
+  "location": "Room 402"
 }
 ```
 
-### Booking guard
-
-Before a `PATCH /book` is applied, the server re-checks that the slot's start time is still in the future and its status is still `available` — preventing race conditions if two students try to book the same slot simultaneously.
-
 ---
 
-## How the Code Is Structured
+## Design Decisions
 
-### State Management — `SlotProvider` + `SlotContext`
-
-All slot data lives in a single React context. `SlotProvider` fetches from the API on mount and exposes `{ slots, loading, refreshSlots }` to the whole component tree. Both `TeacherView` and `StudentBookingView` call `refreshSlots()` after any mutation, keeping the UI automatically in sync.
-
-### Shared Utilities — `slotHelpers.js`
-
-Pure functions used by both views with no side effects:
-
-- `parseDateTime` — converts `"2025-07-15"` + `"09:30"` into a JS `Date`
-- `formatTimeOnly` / `formatDate` — locale-aware display formatting
-- `isPastSlot` — boolean guard for past slots
-- `getTomorrow` — default date for the slot generator form
-- `C` — a single object of Material Design 3 color tokens used for all inline styles
-
-### Teacher View — `TeacherView.jsx`
-
-- Form to pick a date, start time, end time, and location
-- Sends `POST /api/slots/generate` → server returns the created slots with skip counts
-- Lists all slots grouped by date; each row shows status, time, student name (if booked), and action buttons (Cancel / Delete)
-
-### Student View — `StudentBookingView.jsx`
-
-- Filters slots to `status === "available"` and `!isPastSlot()`
-- Groups them by date and renders a clickable grid
-- Selected slot + name input → `PATCH /api/slots/:id/book`
-
----
-
-## Technology Choices
-
-| Layer | Technology | Reason |
-|---|---|---|
-| Frontend | React + Vite | Fast dev server, JSX component model |
-| Styling | Tailwind CSS | Utility-first, no context switching |
-| Routing | React Router v7 | `NavLink` with active-state styling |
-| Backend | Express.js | Minimal, easy REST API setup |
-| Database | MongoDB Atlas | Schema-flexible, free tier, cloud-hosted |
-| Notifications | react-hot-toast | Lightweight success/error toasts |
-
----
-
-## Slot Rules Summary
-
-- Every slot is exactly **15 minutes** long
-- Slots in the **past cannot be added or booked**
-- **Overlapping** slots on the same date are automatically skipped during generation
-- A slot must be **cancelled before it can be deleted**
-- Only **available** slots appear in the student booking view
+- **15-minute granularity is enforced server-side** — the generate endpoint snaps the cursor to the nearest 15-minute boundary and advances in 15-minute steps regardless of what `start` the client sends.
+- **Stateless frontend** — all slot state lives in `SlotProvider`. Any mutation (book, cancel, delete, generate) ends with `refreshSlots()`, which re-fetches from the server. This keeps the UI always in sync with the database.
+- **No authentication** — the system assumes a single teacher and any student by name. Adding auth would be the natural next step.
+- **Colour tokens in `slotHelpers.js`** — the `C` object holds all design colours so they can be changed in one place and all views stay consistent.
